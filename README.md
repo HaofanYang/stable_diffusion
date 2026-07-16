@@ -197,11 +197,11 @@ $$
 
 ## Training and Sampling Algorithm
 
-![DDPM 训练算法](notes/Diffusion_model_training_algorithm.png)
+![DDPM 训练算法](./Diffusion_model_training_algorithm.png)
 
 DDPM 训练算法。Reference: Hung-yi Lee ML 2023 course, https://speech.ee.ntu.edu.tw/~hylee/ml/ml2023-course-data/DDPM%20(v7).pdf
 
-![DDPM 采样算法](notes/diffusion_model_sampling_algorithm.png)
+![DDPM 采样算法](./diffusion_model_sampling_algorithm.png)
 
 DDPM 采样算法。Reference: Hung-yi Lee ML 2023 course, https://speech.ee.ntu.edu.tw/~hylee/ml/ml2023-course-data/DDPM%20(v7).pdf
 
@@ -209,4 +209,4 @@ DDPM 采样算法。Reference: Hung-yi Lee ML 2023 course, https://speech.ee.ntu
 
 TODO
 
-![U-Net architecture](notes/u-net-architecture.png)
+![U-Net architecture](./u-net-architecture.png)
