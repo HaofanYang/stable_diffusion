@@ -36,7 +36,7 @@ $$
 q(x_t \mid x_0) = \mathcal{N}\left(x_t; \sqrt{\bar\alpha_t}\, x_0,\ (1-\bar\alpha_t) I\right)
 $$
 
-其中 $\alpha_t = 1-\beta_t$，$\bar\alpha_t = \prod_{s=1}^{t} \alpha_s$。
+其中 $\alpha_t = 1-\beta_t$， $\bar\alpha_t = \prod_{s=1}^{t} \alpha_s$。
 
 ### 换个角度理解：重参数化（reparameterization）
 
