@@ -9,11 +9,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 def visualize_diffusion_process(dataset):
     import random
     dataset_size = len(dataset)
-    example = dataset[random.randint(0, dataset_size)]
+    index = random.randint(0, dataset_size)
+    example = dataset[index].unsqueeze(0)
     model = ForwardProcess(visualize=True)
     model.eval()
     with torch.no_grad():
-        model(example)
+        for t_val in [0, 50, 100, 250, 500, 750, 999]:
+            t = torch.tensor([t_val])
+            model(example, t)
 
 
 if __name__ == "__main__":

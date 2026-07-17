@@ -53,5 +53,5 @@ class ForwardProcess(nn.Module):
 
         x_t = sqrt_alphas_cumprod_t * x0 + sqrt_one_minus_alphas_cumprod_t * noise
         if self.visualize:
-            utils.show_image(x_t)
+            utils.show_image(x_t.squeeze())
         return x_t, noise
