@@ -38,8 +38,10 @@ class ForwardProcess(nn.Module):
         alphas_cumprod = torch.cumprod(alphas, dim=0)  # \bar{alpha}_t
 
         # 用 register_buffer 存常数：不是可训练参数，但要跟着 .to(device) 走
-        self.register_buffer("sqrt_alphas_cumprod", torch.sqrt(alphas_cumprod))
-        self.register_buffer("sqrt_one_minus_alphas_cumprod", torch.sqrt(1. - alphas_cumprod))
+        # float64 只是为了算 cumprod 时数值更稳，存的时候转回 float32：
+        # 一是跟图像 tensor 的 dtype 对齐，二是 MPS/大多数 GPU 后端根本不支持 float64
+        self.register_buffer("sqrt_alphas_cumprod", torch.sqrt(alphas_cumprod).float())
+        self.register_buffer("sqrt_one_minus_alphas_cumprod", torch.sqrt(1. - alphas_cumprod).float())
 
     def forward(self, x0, t, noise=None):
         # x0: (b, c, h, w) 原图；t: (b,) 每张图各自的时间步
