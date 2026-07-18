@@ -10,7 +10,7 @@ class Dataset(Dataset):
         self,
         root_path,
         transform=None,
-        image_size=(64, 64)
+        image_size=(512, 512)
     ):
         self.root_path = Path(root_path)
         self.paths = sorted(self.root_path.glob("*.jpg"))
