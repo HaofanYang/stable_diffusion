@@ -1,8 +1,8 @@
-# Diffusion Model 学习笔记
+# Diffusion Model Study Notes
 
-## Diffusion 过程
+## The Diffusion Process
 
-要理解diffusion，先把输入放到一边，先尝试解决第一个问题：如何让模型在没有额外输入（文本，图像）的情况下，通过diffusion过程生成一个跟训练集图片风格一致的图片
+To understand diffusion, set the inputs aside for now and start with the first problem: how can a model, with no extra input (text, image), generate an image in the same style as the training set through a diffusion process?
 
 ```mermaid
 graph LR
@@ -16,123 +16,123 @@ graph LR
     x1 -.->|"p_theta(x0 | x1)"| x0
 ```
 
-黑色实线（→）是 forward process（加噪声，固定，无参数）；虚线（-.→）是 reverse process（去噪声，网络 εθ 预测）。
+Solid black arrows (→) are the forward process (adding noise; fixed, no parameters); dashed arrows (-.→) are the reverse process (denoising, predicted by the network εθ).
 
 ### Forward process
 
-用大白话来说，forward process就是给一个原始图片 $x_0$ 不断加噪声，直至得到一个完全模糊的图像 $x_T$ 为止。
+In plain words, the forward process keeps adding noise to an original image $x_0$ until it becomes a completely blurred image $x_T$.
 
-单步加噪（马尔可夫链，每步只依赖上一步）：
+Single-step noising (a Markov chain; each step depends only on the previous one):
 
 $$
 q(x_t \mid x_{t-1}) = \mathcal{N}\left(x_t; \sqrt{1-\beta_t}\, x_{t-1},\ \beta_t I\right)
 $$
 
-其中 $\beta_t \in (0,1)$ 是第 $t$ 步的噪声强度（noise schedule）。
+where $\beta_t \in (0,1)$ is the noise strength at step $t$ (the noise schedule).
 
-任意步的闭式解（可以从 $x_0$ 直接跳到 $x_t$，不用逐步采样）：
+Closed form for an arbitrary step (you can jump from $x_0$ straight to $x_t$ without sampling step by step):
 
 $$
 q(x_t \mid x_0) = \mathcal{N}\left(x_t; \sqrt{\bar\alpha_t}\, x_0,\ (1-\bar\alpha_t) I\right)
 $$
 
-其中 $\alpha_t = 1-\beta_t$， $\bar\alpha_t = \prod_{s=1}^{t} \alpha_s$。
+where $\alpha_t = 1-\beta_t$ and $\bar\alpha_t = \prod_{s=1}^{t} \alpha_s$.
 
-### 换个角度理解：重参数化（reparameterization）
+### Another view: reparameterization
 
-$q(x_t \mid x_{t-1})$ 是一个正态分布，等价于说：先从标准正态采样一个噪声 $\epsilon$，再做一次线性变换：
+$q(x_t \mid x_{t-1})$ is a normal distribution, which is equivalent to first sampling a noise $\epsilon$ from a standard normal and then applying a linear transformation:
 
 $$
 x_t = \sqrt{\alpha_t}\, x_{t-1} + \sqrt{1-\alpha_t}\, \epsilon, \qquad \epsilon \sim \mathcal{N}(0, I)
 $$
 
-（这里 $\alpha_t = 1-\beta_t$。）这就是"重参数化技巧"：把"从分布里采样"改写成"采样一个固定分布的噪声 + 确定性变换"，好处是整个过程对参数可导，也更直观——每一步就是把上一步的图像缩小一点、再叠加一点噪声。
+(Here $\alpha_t = 1-\beta_t$.) This is the "reparameterization trick": rewrite "sampling from a distribution" as "sample noise from a fixed distribution, then apply a deterministic transformation". The benefit is that the whole process is differentiable with respect to the parameters, and it is also more intuitive: each step just shrinks the previous image a little and adds a little noise.
 
-同理，闭式解 $q(x_t \mid x_0)$ 也可以写成同样的形式：
+Likewise, the closed form $q(x_t \mid x_0)$ can be written in the same form:
 
 $$
 x_t = \sqrt{\bar\alpha_t}\, x_0 + \sqrt{1-\bar\alpha_t}\, \epsilon, \qquad \epsilon \sim \mathcal{N}(0, I)
 $$
 
-### 练习题：证明为什么可以从 $x_0$ 直接跳到 $x_t$
+### Exercise: prove why we can jump from $x_0$ directly to $x_t$
 
-**题目**：已知单步加噪 $x_t = \sqrt{\alpha_t}\, x_{t-1} + \sqrt{1-\alpha_t}\, \epsilon_t$（各步的 $\epsilon_t$ 互相独立，均服从 $\mathcal{N}(0,I)$），证明
+**Problem**: Given the single-step noising $x_t = \sqrt{\alpha_t}\, x_{t-1} + \sqrt{1-\alpha_t}\, \epsilon_t$ (the $\epsilon_t$ of the different steps are independent and each follows $\mathcal{N}(0,I)$), prove that
 
 $$
 x_t = \sqrt{\bar\alpha_t}\, x_0 + \sqrt{1-\bar\alpha_t}\, \epsilon, \qquad \epsilon \sim \mathcal{N}(0, I),\quad \bar\alpha_t = \prod_{s=1}^t \alpha_s
 $$
 
-**提示**：用数学归纳法，核心是"两个独立高斯变量的线性组合仍是高斯变量"这一性质：若 $\epsilon_1, \epsilon_2 \sim \mathcal{N}(0,I)$ 独立，则 $a\epsilon_1 + b\epsilon_2 \sim \mathcal{N}(0, (a^2+b^2)I)$，可以合并成一个新的 $\epsilon \sim \mathcal{N}(0,I)$ 乘以系数 $\sqrt{a^2+b^2}$。
+**Hint**: Use induction. The key is the property that "a linear combination of two independent Gaussian variables is still Gaussian": if $\epsilon_1, \epsilon_2 \sim \mathcal{N}(0,I)$ are independent, then $a\epsilon_1 + b\epsilon_2 \sim \mathcal{N}(0, (a^2+b^2)I)$, which can be merged into a new $\epsilon \sim \mathcal{N}(0,I)$ multiplied by the coefficient $\sqrt{a^2+b^2}$.
 
-**证明**：
+**Proof**:
 
-- 归纳基础（$t=1$）：$x_1 = \sqrt{\alpha_1}\,x_0 + \sqrt{1-\alpha_1}\,\epsilon_1$，此时 $\bar\alpha_1 = \alpha_1$，结论成立。
-- 归纳假设：设 $x_{t-1} = \sqrt{\bar\alpha_{t-1}}\, x_0 + \sqrt{1-\bar\alpha_{t-1}}\, \bar\epsilon_{t-1}$，其中 $\bar\epsilon_{t-1} \sim \mathcal{N}(0,I)$。
-- 归纳步骤：把它代入单步公式
+- Base case ($t=1$): $x_1 = \sqrt{\alpha_1}\,x_0 + \sqrt{1-\alpha_1}\,\epsilon_1$. Here $\bar\alpha_1 = \alpha_1$, so the claim holds.
+- Inductive hypothesis: suppose $x_{t-1} = \sqrt{\bar\alpha_{t-1}}\, x_0 + \sqrt{1-\bar\alpha_{t-1}}\, \bar\epsilon_{t-1}$, where $\bar\epsilon_{t-1} \sim \mathcal{N}(0,I)$.
+- Inductive step: substitute it into the single-step formula
 
 $$
 \begin{aligned}
 x_t &= \sqrt{\alpha_t}\, x_{t-1} + \sqrt{1-\alpha_t}\, \epsilon_t \\
 &= \sqrt{\alpha_t}\left(\sqrt{\bar\alpha_{t-1}}\, x_0 + \sqrt{1-\bar\alpha_{t-1}}\, \bar\epsilon_{t-1}\right) + \sqrt{1-\alpha_t}\, \epsilon_t \\
-&= \sqrt{\alpha_t \bar\alpha_{t-1}}\, x_0 + \underbrace{\sqrt{\alpha_t(1-\bar\alpha_{t-1})}\, \bar\epsilon_{t-1} + \sqrt{1-\alpha_t}\, \epsilon_t}_{\text{两个独立高斯的线性组合}}
+&= \sqrt{\alpha_t \bar\alpha_{t-1}}\, x_0 + \underbrace{\sqrt{\alpha_t(1-\bar\alpha_{t-1})}\, \bar\epsilon_{t-1} + \sqrt{1-\alpha_t}\, \epsilon_t}_{\text{linear combination of two independent Gaussians}}
 \end{aligned}
 $$
 
-由于 $\bar\epsilon_{t-1}$ 与 $\epsilon_t$ 相互独立，二者的线性组合仍是高斯分布，方差为两系数平方和：
+Since $\bar\epsilon_{t-1}$ and $\epsilon_t$ are independent, their linear combination is still Gaussian, and its variance is the sum of the squared coefficients:
 
 $$
 \alpha_t(1-\bar\alpha_{t-1}) + (1-\alpha_t) = \alpha_t - \alpha_t\bar\alpha_{t-1} + 1 - \alpha_t = 1 - \alpha_t\bar\alpha_{t-1} = 1-\bar\alpha_t
 $$
 
-所以可以把这两项合并成一个新的 $\epsilon \sim \mathcal{N}(0,I)$：
+So the two terms can be merged into a single new $\epsilon \sim \mathcal{N}(0,I)$:
 
 $$
 x_t = \sqrt{\alpha_t\bar\alpha_{t-1}}\, x_0 + \sqrt{1-\bar\alpha_t}\, \epsilon = \sqrt{\bar\alpha_t}\, x_0 + \sqrt{1-\bar\alpha_t}\, \epsilon
 $$
 
-（用到 $\bar\alpha_t = \alpha_t \bar\alpha_{t-1}$）。由归纳法，结论对所有 $t$ 成立。∎
+(using $\bar\alpha_t = \alpha_t \bar\alpha_{t-1}$). By induction, the claim holds for all $t$. ∎
 
-**直觉**：每一步加噪都是"独立"的高斯噪声，多步叠加后依然是高斯分布（高斯分布对线性组合封闭），所以可以把 $t$ 步噪声"预先合并"成一个等效的单步噪声，直接从 $x_0$ 采样到 $x_t$，不需要真的跑 $t$ 次循环。
+**Intuition**: every noising step adds "independent" Gaussian noise, and stacking many steps still gives a Gaussian (Gaussians are closed under linear combinations). So the noise from $t$ steps can be "pre-merged" into one equivalent single-step noise, and we can sample $x_t$ directly from $x_0$ without actually running $t$ iterations.
 
 ### Reverse Process
 
-Reverse Process是比较难理解的过程。但是直觉上容易理解：如何找到最优参数 $p_\theta$，能以最大概率还原 $x_0$，即
+The reverse process is the harder part to understand, but the intuition is simple: how do we find the optimal parameters $p_\theta$ that recover $x_0$ with the highest probability, i.e.
 
 $$
 p_\theta(x_{t-1} \mid x_t), \qquad \theta^* = \arg\max_{\theta} \log p_\theta(x_0)
 $$
 
-#### 概率论基础（复习）
+#### Probability basics (review)
 
-联合概率分布 $p_{X,Y}(x,y)$，对事件 $B$：
-
-$$
-P_{X,Y}(B) = \sum_{(x,y) \in B} p_{X,Y}(x,y) \qquad \text{（离散）}
-$$
+For a joint distribution $p_{X,Y}(x,y)$ and an event $B$:
 
 $$
-P_{X,Y}(B) = \iint_{(x,y) \in B} p_{X,Y}(x,y)\, dx\, dy \qquad \text{（连续）}
+P_{X,Y}(B) = \sum_{(x,y) \in B} p_{X,Y}(x,y) \qquad \text{(discrete)}
 $$
 
-若 $X$ 与 $Y$ 独立：
+$$
+P_{X,Y}(B) = \iint_{(x,y) \in B} p_{X,Y}(x,y)\, dx\, dy \qquad \text{(continuous)}
+$$
+
+If $X$ and $Y$ are independent:
 
 $$
 p(x \mid y) = p(x) \iff p(y \mid x) = p(y)
 $$
 
-边际概率分布是联合分布的特殊推论，已知 $p_{X,Y}$，求 $p_X(x)$：
+The marginal distribution is a special consequence of the joint distribution. Given $p_{X,Y}$, to get $p_X(x)$:
 
 $$
-p_X(x) = \sum_{y} p_{X,Y}(x,y) \qquad \text{（离散）}
+p_X(x) = \sum_{y} p_{X,Y}(x,y) \qquad \text{(discrete)}
 $$
 
 $$
-p_X(x) = \int p_{X,Y}(x,y)\, dy \qquad \text{（连续）}
+p_X(x) = \int p_{X,Y}(x,y)\, dy \qquad \text{(continuous)}
 $$
 
 #### Reverse process
 
-Reverse process的工作，就是找到一组 $p_\theta$ 参数来让 $p(x_0)$ 的概率最大
+The job of the reverse process is to find a set of parameters $p_\theta$ that maximizes the probability $p(x_0)$:
 
 $$
 p(x_0, x_1, x_2, \ldots, x_t) = p(x_0, x_{1:t}) = p(x_0)\, p(x_1 \mid x_0)\, p(x_2 \mid x_1) \cdots p(x_{t-1} \mid x_t)
@@ -142,68 +142,68 @@ $$
 p(x_0) = \int p(x_0, x_{1:T})\, dx_{1:T}
 $$
 
-很不幸，上式的积分是不可解析计算的（intractable）。
+Unfortunately, the integral above is intractable (it cannot be computed analytically).
 
-#### 一系列神奇的数学变换
+#### A series of magical mathematical transformations
 
-这个部分太耗时间，而且有点过于烧脑，此处先跳过, 大致思路是通过一个数学变换，把上述公式转换为一个数学期望，然后apply Jensen's inequality，得到一个下界（ELBO），然后再通过变分推断（variational inference）来优化这个下界。
+This part is time-consuming and a bit too brain-burning, so I'll skip it for now. The rough idea: use a mathematical transformation to turn the formula above into an expectation, apply Jensen's inequality to get a lower bound (the ELBO), and then optimize that lower bound with variational inference.
 
 #### Loss function
 
-跳过 ELBO 推导细节，DDPM 最终使用的训练目标是一个非常简洁的均方误差（"simple loss"）：
+Skipping the details of the ELBO derivation, the training objective DDPM ends up using is a very simple mean squared error (the "simple loss"):
 
 $$
 L_{\text{simple}}(\theta) = \mathbb{E}_{t,\, x_0,\, \epsilon}\Big[\ \|\epsilon - \epsilon_\theta(x_t, t)\|^2\ \Big], \qquad x_t = \sqrt{\bar\alpha_t}\, x_0 + \sqrt{1-\bar\alpha_t}\, \epsilon
 $$
 
-各参数含义：
+What each term means:
 
-- $\theta$：神经网络的可训练权重。
-- $t$：时间步，训练时从 $1$ 到 $T$ 中随机抽一个。
-- $x_0$：训练集里随机抽的一张真实图片。
-- $\epsilon$：随机现场采样的高斯噪声，$\epsilon \sim \mathcal{N}(0, I)$，是模型要去猜的"标准答案"。
-- $\bar\alpha_t$：由 noise schedule 事先算好的常数，只跟 $t$ 有关，不是学出来的。
-- $x_t$：把 $x_0$ 和 $\epsilon$ 按 $\bar\alpha_t$ 的比例混合算出来的"加噪后的图"。
-- $\epsilon_\theta(x_t, t)$：神经网络的输出，输入加噪图 $x_t$ 和时间步 $t$，输出网络猜的噪声。
-- $\|\cdot\|^2$：平方 L2 范数，即均方误差（MSE）。
+- $\theta$: the trainable weights of the neural network.
+- $t$: the timestep, sampled at random from $1$ to $T$ during training.
+- $x_0$: a real image drawn at random from the training set.
+- $\epsilon$: Gaussian noise sampled on the spot, $\epsilon \sim \mathcal{N}(0, I)$; it is the "ground truth" the model has to guess.
+- $\bar\alpha_t$: a constant precomputed from the noise schedule; it depends only on $t$ and is not learned.
+- $x_t$: the "noised image" obtained by mixing $x_0$ and $\epsilon$ in the proportions given by $\bar\alpha_t$.
+- $\epsilon_\theta(x_t, t)$: the network's output; given the noised image $x_t$ and the timestep $t$, it outputs the noise the network thinks was added.
+- $\|\cdot\|^2$: the squared L2 norm, i.e. mean squared error (MSE).
 
-训练流程：随机挑一张图、随机挑一个时间步、随机撒一把噪声混合出 $x_t$；网络看到 $x_t$ 和 $t$，猜出撒了什么噪声；猜的噪声和真实噪声的均方误差就是 loss，反向传播更新 $\theta$。
+Training procedure: pick a random image, a random timestep, and a random draw of noise, and mix them into $x_t$; the network sees $x_t$ and $t$ and guesses which noise was added; the mean squared error between the guessed noise and the true noise is the loss, and backpropagation updates $\theta$.
 
-#### Reverse process 采样公式
+#### Sampling formula for the reverse process
 
-真实后验 $q(x_{t-1}\mid x_t, x_0)$ 是高斯分布，均值和方差：
+The true posterior $q(x_{t-1}\mid x_t, x_0)$ is Gaussian, with mean and variance:
 
 $$
 \tilde\mu_t(x_t,x_0) = \frac{\sqrt{\bar\alpha_{t-1}}\,\beta_t}{1-\bar\alpha_t}\, x_0 + \frac{\sqrt{\alpha_t}\,(1-\bar\alpha_{t-1})}{1-\bar\alpha_t}\, x_t, \qquad \tilde\beta_t = \frac{1-\bar\alpha_{t-1}}{1-\bar\alpha_t}\,\beta_t
 $$
 
-推理时没有 $x_0$，用重参数化公式反解出的估计值代入：
+At inference time there is no $x_0$, so we plug in the estimate obtained by inverting the reparameterization formula:
 
 $$
 \hat{x}_0 = \frac{1}{\sqrt{\bar\alpha_t}}\left(x_t - \sqrt{1-\bar\alpha_t}\,\epsilon_\theta(x_t,t)\right)
 $$
 
-代入化简后，模型的均值参数化为：
+After substituting and simplifying, the model's mean is parameterized as:
 
 $$
 \mu_\theta(x_t, t) = \frac{1}{\sqrt{\alpha_t}}\left(x_t - \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\, \epsilon_\theta(x_t, t)\right)
 $$
 
-每一步采样公式（从 $x_T \sim \mathcal{N}(0,I)$ 开始，$t=T,\ldots,1$ 迭代到 $x_0$）：
+The per-step sampling formula (start from $x_T \sim \mathcal{N}(0,I)$ and iterate $t=T,\ldots,1$ down to $x_0$):
 
 $$
-x_{t-1} = \frac{1}{\sqrt{\alpha_t}}\left(x_t - \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\, \epsilon_\theta(x_t, t)\right) + \sigma_t z, \qquad z \sim \mathcal{N}(0,I)\ (t>1\text{ 时加噪声，}t=1\text{ 时不加}),\quad \sigma_t^2 = \beta_t \text{ 或 } \tilde\beta_t
+x_{t-1} = \frac{1}{\sqrt{\alpha_t}}\left(x_t - \frac{\beta_t}{\sqrt{1-\bar\alpha_t}}\, \epsilon_\theta(x_t, t)\right) + \sigma_t z, \qquad z \sim \mathcal{N}(0,I)\ (\text{noise added when } t>1,\ \text{none when } t=1),\quad \sigma_t^2 = \beta_t \text{ or } \tilde\beta_t
 $$
 
 ## Training and Sampling Algorithm
 
-![DDPM 训练算法](./Diffusion_model_training_algorithm.png)
+![DDPM training algorithm](./Diffusion_model_training_algorithm.png)
 
-DDPM 训练算法。Reference: Hung-yi Lee ML 2023 course, https://speech.ee.ntu.edu.tw/~hylee/ml/ml2023-course-data/DDPM%20(v7).pdf
+DDPM training algorithm. Reference: Hung-yi Lee ML 2023 course, https://speech.ee.ntu.edu.tw/~hylee/ml/ml2023-course-data/DDPM%20(v7).pdf
 
-![DDPM 采样算法](./diffusion_model_sampling_algorithm.png)
+![DDPM sampling algorithm](./diffusion_model_sampling_algorithm.png)
 
-DDPM 采样算法。Reference: Hung-yi Lee ML 2023 course, https://speech.ee.ntu.edu.tw/~hylee/ml/ml2023-course-data/DDPM%20(v7).pdf
+DDPM sampling algorithm. Reference: Hung-yi Lee ML 2023 course, https://speech.ee.ntu.edu.tw/~hylee/ml/ml2023-course-data/DDPM%20(v7).pdf
 
 ## U-Net
 
